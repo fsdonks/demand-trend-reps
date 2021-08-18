@@ -1,3 +1,7 @@
+;;This is intended to be loaded from the m4 repl.
+;;We add demand trend results together for each src, demandgroup, and
+;;t across multiple reps and then divide by the number of reps to get
+;;the average stats per day.
 (require 'marathon.analysis.random)
 (ns marathon.analysis.random)
 (require '[marathon.project :as project])
@@ -9,15 +13,11 @@
        (a/load-context)
        (a/as-stream)
        (map (fn [[t ctx]]
-              ;(println t)
               {:t t :ctx ctx}))
        (gen/time-weighted-samples :t)
-       ;(map (fn [[m x d :as res]] (println x) res))
        (mapcat (fn [[{:keys [t ctx]} t deltaT]]
                  (map (fn [r] (assoc r :deltaT deltaT :t t))
                       (util/demand-trends-exhaustive ctx))))
-       ;;((fn [res] (println (first res)) res))
-       ;;(apply concat))
   ))
 
 (defn rand-demand-trends
@@ -50,20 +50,16 @@
           ;;one rep
           (apply concat)
           (vec)
-          ;;((fn [res] (println (first res)) res))
           )))
 
 (defn lerp-demand-trends
   "Given sparsely-sampled demand trend records with deltaT, we need to
   repeat each record deltaT times for easiy merging with other reps."
   [demand-trends]
-  ;(println demand-trends)
   (->> (for [{:keys [deltaT t] :as r} demand-trends
-             :let [;_ (println r)
-                   new-recs (repeat deltaT r)]]
+             :let [new-recs (repeat deltaT r)]]
          (->> (range t (+ (count new-recs) t))
          (map (fn [rec t] (assoc rec :t t)) new-recs)))
-       ;;this repeat isn't right, need to add t I think...
        (apply concat)
          ))
   
@@ -81,8 +77,6 @@
 (defn group-trends [reps demand-trends]
   ;;ensure that demandtrends are lerped since we will lose delta t!
   ;;group by time and SRC
-  ;;within each time group, have another group fn (demandgroup or fn
-  ;;that returns true, actually, can?t think of any other reason to do this, so group by demandgroup by default.)
   (->> (group-by #(select-keys % [:t :SRC :DemandGroup])
                  (lerp-demand-trends demand-trends))
        (map (fn [[keys recs]] (combine-trends reps recs)) )))
