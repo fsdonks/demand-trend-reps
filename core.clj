@@ -57,7 +57,7 @@
   repeat each record deltaT times for easiy merging with other reps."
   [demand-trends]
   (->> (for [{:keys [deltaT t] :as r} demand-trends
-             :let [new-recs (repeat deltaT r)]]
+             :let [new-recs (repeat deltaT (assoc r :deltaT 1))]]
          (->> (range t (+ (count new-recs) t))
          (map (fn [rec t] (assoc rec :t t)) new-recs)))
        (apply concat)
@@ -66,7 +66,7 @@
 (defn combine-trends [reps demand-trends]
   (let [{:keys [SRC DemandGroup t]} (first demand-trends)]
      (->> (map (fn [r] (dissoc r :DemandName :Vignette
-                         :deltaT :Quarter :SRC :DemandGroup :t))
+                          :Quarter :SRC :DemandGroup :t))
               demand-trends)
           (apply merge-with +)
           ;;Compute average stats for this day.
