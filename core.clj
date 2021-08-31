@@ -98,14 +98,17 @@
   default-compo-lengths.
   :phases - optional, sequence of [phase from to] :: [string int int],
              derived from PeriodRecords if nil. Likely to punt to post processing."
-  [proj-path & {:keys [reps phases seed compo-lengths seed->randomizer]
+  [proj-path & {:keys [reps phases seed compo-lengths seed->randomizer
+                       out-file-name]
            :or   {seed +default-seed+
                   compo-lengths default-compo-lengths}}]
   (let [proj (a/load-project proj-path)
+        proj-path (project/project-path proj)
+        file-name (str proj-path (if out-file-name out-file-name
+                                     "DemandTrends_reps.txt"))
         seed->randomizer (or seed->randomizer #(default-randomizer % compo-lengths))
         gen              (util/->gen seed)
-        phases           (or phases (util/derive-phases proj))
-        out-path (project/project-path proj)]
+        phases           (or phases (util/derive-phases proj))]
     ;;input validation, we probably should do more of this in general.
     (assert (s/valid? ::phases phases) (s/explain-str ::phases []))
        ;;return demand-trends
@@ -118,5 +121,5 @@
          ;;all demand trends from the reps added together
          (apply concat)
          (group-trends reps)
-         ((fn [recs] (tbl/records->file recs (str out-path "DemandTrend_reps.txt")))))))
+         ((fn [recs] (tbl/records->file recs file-name))))))
 
