@@ -63,16 +63,21 @@
        (apply concat)
          ))
   
-(defn combine-trends [reps demand-trends]
-  (let [{:keys [SRC DemandGroup t]} (first demand-trends)]
-     (->> (map (fn [r] (dissoc r :DemandName :Vignette
-                          :Quarter :SRC :DemandGroup :t))
+(defn combine-trends [demand-trends]
+  (let [{:keys [SRC DemandGroup t deltaT]} (first demand-trends)]
+    (->> (map (fn [r] (dissoc r :DemandName :Vignette
+                              :Quarter :SRC :DemandGroup :t :deltaT))
               demand-trends)
-          (apply merge-with +)
-          ;;Compute average stats for this day.
-          (map (fn [[k v]] [k (float (/ v reps))]))
-          (into {})
-         ((fn [r] (assoc r :SRC SRC :DemandGroup DemandGroup :t t))))))
+         (apply merge-with +)
+         ;;Compute average stats for this day.
+         ((fn [r] (assoc r :SRC SRC :DemandGroup DemandGroup :t t
+                         :deltaT deltaT))))))
+
+(defn average-trend [reps demand-trend]
+  (into {} (for [[k v] demand-trend]
+             (if (or (string? v) (contains? #{:t :deltaT} k))
+               [k v]
+               [k (float (/ v reps))]))))
 
 (defn group-trends [reps demand-trends]
   ;;ensure that demandtrends are lerped since we will lose delta t!
@@ -80,7 +85,20 @@
   (->> (group-by #(select-keys % [:t :SRC :DemandGroup])
                  (lerp-demand-trends demand-trends))
        (map (fn [[keys recs]] (combine-trends reps recs)) )))
-	
+
+;;for each new record
+;; New plan
+;; For each record in new trends, add it to the acc map
+;; So add fn, if not in the map (if-let), assoc it with [src t
+;; Demandgroup] if is in the map, combine trends
+(defn add-rec [acc {:keys [DemandGroup t SRC] :as trend-rec}]
+  (let [key-vec [DemandGroup t SRC]
+        curr (acc key-vec)]
+    ;;curr might be nil, but this still works.
+    (assoc acc key-vec (combine-trends [trend-rec curr]))))
+  
+;; Finally, take the Val's
+
 ;;for each run, add everything in the groups together (probably
 ;;nothing to add), and drop t, DemandName, Vignette, deltaT, Quarter. DemandGroup, SRC stay constant.
 ;;then merge those results with the existing set of runs with addition  Probably won?t add anything together for individual runs
@@ -120,6 +138,10 @@
                                           seed->randomizer)))
          ;;all demand trends from the reps added together
          (apply concat)
-         (group-trends reps)
+         (lerp-demand-trends)
+         (reduce add-rec {})
+         (vals)
+         (map (partial average-trend reps))
+         ;(group-trends reps)
          ((fn [recs] (tbl/records->file recs file-name))))))
 
